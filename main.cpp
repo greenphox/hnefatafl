@@ -6,18 +6,21 @@ int depth ;
 class Status
 {
 public:
-    array<short, 49> board;
-    int king_pos;
-    int winner = 0;
-    int whitepieces = 4;
-    int blackpieces = 8;
-    int interest_value=0;
-    bool capture = false; // was there a capture in this turn?
-
+    array<short, 49> board; // it is the basic board[49] with 0 at empty spaces 1->black 2->white pieces
+    int king_pos; // it contains the position of the king in the board (0->top left space, 48 bottom right)
+// king pos will just be now the first element of an array<int,13>
+    int winner = 0; // if the game has concluded with a winner 1->black 2->white
+    int whitepieces = 4; //the number of white pieces
+    int blackpieces = 8; //the number of black pieces
+    int interest_value=0; // how interesting is the move (λογικά θα το αλλάξουμε αυτό, γιατί θα κοιτάμε τις κινήσεις μία-μία
+//δηλαδή στο minmax θα έχουμε μία for loop for pieces -> for 1->24 και θα ζητάμε μία μία τις κινήσεις 1,2,3,4,5
+//οι κινήσεις από 0->5 θα είναι προς τα πάνω από 6->11 προς τα δεξιά 12->17 αριστερά, 18->23 κάτω. Οπότε δε θα υπάρχει χρόνος
+//να shortάρουμε τις κινήσεις σχετικά με το interest_value τους.
+    bool capture = false; // was there a capture in this turn? The minmax should never stop evaluating when there was a capture made.
     Status(array<short, 49> boarda){
-        board=boarda;
-        whitepieces=0;
-        blackpieces=0;
+        board=boarda;//deep copy (std:array)
+        whitepieces=0;//counting whites
+        blackpieces=0;//counting black
         for(int i=0; i<49; i++){
             if (board[i]==3)
                 king_pos=i;
@@ -29,13 +32,17 @@ public:
     }
 };
 
+//αυτή η συνάρτηση υπήρχε μόνο και μόνο για να σορτάρω τις κινήσεις και να τις βλέπω από την πιο ενδιαφέρουσα μέχρι την πιο βαρετή.
+//Ωστόοσ αυτό προΰποθέτει να έχουμε ένα vector με όλες τις κινήσεις. Το οποίο προΰποθέτει σε κάθε κλήση του minmax να δημιουργούμε
+//ένα vector. Υποψιάζομαι πως αυτό καθυστερεί, για αυτό απλώς θα τις ζητάμε από το minmax με έναν κωδικό αριθμό 0-24.
 struct CompareMoves {
     bool operator()(const Status& a, const Status& b) const {
         return a.interest_value > b.interest_value; // Change to < for min-heap behavior
     }
 };
 
-// EDITS the board sent according to the moves.
+// EDITS the Status instance sent according to the move inputed.
+//Returns nothing, as the changes are done to the pointed class
 void MaterializeMove(Status *status, int startp, int endp)
 {
     //..editing  board
@@ -45,15 +52,17 @@ void MaterializeMove(Status *status, int startp, int endp)
         status->king_pos=endp;
     }
     // black:
-    if ((endp % 7 < 5) && (*board)[endp] == 1 && (*board)[endp + 1] != 1 && (*board)[endp + 2] == 1)
+    //the if statements are correct, it is inside the conditions we need to change things.
+    if ((endp % 7 < 5) && (*board)[endp] == 1 && (*board)[endp + 1] > 1 && (*board)[endp + 2] == 1)
     {
+        //change the status, the white count, check for winners and edit the board 
         status->capture = true;
         status->whitepieces--;
         if ((*board)[endp + 1] == 3)
             status->winner = 1;
         (*board)[endp + 1] = 0;
     }
-    if ((endp % 7 > 1) && (*board)[endp] == 1 && (*board)[endp - 1] != 1 && (*board)[endp - 2] == 1)
+    if ((endp % 7 > 1) && (*board)[endp] == 1 && (*board)[endp - 1] > 1 && (*board)[endp - 2] == 1)
     {
         status->capture = true;
         status->whitepieces--;
@@ -61,7 +70,7 @@ void MaterializeMove(Status *status, int startp, int endp)
             status->winner = 1;
         (*board)[endp - 1] = 0;
     }
-    if ((endp / 7 < 5) && (*board)[endp] == 1 && (*board)[endp + 7] != 1 && (*board)[endp + 14] == 1)
+    if ((endp / 7 < 5) && (*board)[endp] == 1 && (*board)[endp + 7] > 1 && (*board)[endp + 14] == 1)
     {
         status->capture = true;
         status->whitepieces--;
@@ -69,7 +78,7 @@ void MaterializeMove(Status *status, int startp, int endp)
             status->winner = 1;
         (*board)[endp + 7] = 0;
     }
-    if ((endp / 7 > 1) && (*board)[endp] == 1 && (*board)[endp - 7] != 1 && (*board)[endp - 14] == 1)
+    if ((endp / 7 > 1) && (*board)[endp] == 1 && (*board)[endp - 7] > 1 && (*board)[endp - 14] == 1)
     {
         status->capture = true;
         status->whitepieces--;
@@ -104,6 +113,7 @@ void MaterializeMove(Status *status, int startp, int endp)
         status->capture = true;
         (*board)[endp - 7] = 0;
     }
+    
     //Calculating interest_value
     if (status->winner){
         status->interest_value=100;
@@ -114,11 +124,10 @@ void MaterializeMove(Status *status, int startp, int endp)
     if ((*board)[endp]==3){
         status->interest_value++;
     }
-
-
     return;
 }
 
+//This function just works, don't change it
 void PrintBoard(Status status)
 {   
     array<short,49> board=status.board;
@@ -131,8 +140,14 @@ void PrintBoard(Status status)
     cout << endl;
 }
 
+
+// this functions DOESN't CREATE A NEW VECTOR! instead it writes in the inputed pointed vector (possible moves)
 void CreateMoveStates(Status status, bool player,vector<Status> *possible_moves)
 {
+    //we will need to drastically change this function
+    //instead of outputing all possible moves, this function needs to take a code number of a move, the position of a piece,
+    //and then edit the board accordingly.
+    //It will also return true if the move has been completed and false if there was something blocking it
     array<short,49> board=status.board;
     for (int i = 0; i < 7; i++)
     {
@@ -203,16 +218,7 @@ void CreateMoveStates(Status status, bool player,vector<Status> *possible_moves)
     return ;
 }
 
-/*
-{0,0,0,1,0,0,0,
-0,0,0,1,0,0,0,
-0,0,0,2,0,0,0,
-1,1,2,3,2,1,1,
-0,0,0,2,0,0,0,
-0,0,0,1,0,0,0,
-0,0,0,1,0,0,0}
-*/
-
+//starting position
 array<short, 49> start_ar =
     {0, 0, 0, 1, 0, 0, 0,
      0, 0, 0, 1, 0, 0, 0,
@@ -230,7 +236,12 @@ int Evaluation(Status status)
     return ev;
 }
 
-
+//Changes we need to make:
+//There will be NO STACK just the same Status instance that will be edited and undoed.
+//Instead of creating all moves in a vector, we will have a for loop that will ask for every move 0-24
+//If CreateMoveStates() returns false in a move (3), instead of trying the next one(4) we will have to change direction.
+//the next move we should try is in another direction. (0-5)(6-11)(12-17)(18-13) are all differrent directions, so we just have to do
+// (current move/6)+6 so if tried move 3 and failed, the next one we try is 6. If we tried 12 and failed, the next one is 18.
 int minmax(int d, int maxd, int current, bool player, stack<Status> *status_stack)
 {
     Status status = status_stack->top();
@@ -285,15 +296,17 @@ int minmax(int d, int maxd, int current, bool player, stack<Status> *status_stac
     return evalue;
 }
 
-
+//It is a very basic function, it is necessary for the multithreading process.
 void CalculateMinMax(Status move, int bestEva, int player,int &result){
-    stack<Status> mstack;
-    mstack.push(move);
+    stack<Status> mstack;//will be removed, minmax will only take a Status class as input, not a whole stack
+    mstack.push(move);//instead of pushing it to the stack, we just need to pass the "move"
     result = minmax(0, depth, bestEva, !player, &mstack);
 }
 
 
-
+// no major changes are needed in this function.
+// it creates all possible moves and finds the best one using minmax
+// We will need to change the way it finds all those moves, using the code numbers instead of vectors
 Status FindBestMove(Status board, bool player)
 {
     //    cout<<"Starting Search \n";
@@ -334,24 +347,6 @@ Status FindBestMove(Status board, bool player)
             bestMove = moves[i];
         }
     }
-
-
-// DANGER
-/*    
-for (Status move : moves)
-    {
-        stack<Status> mstack;
-        mstack.push(move);
-        int move_value = minmax(0, depth, bestEva, !player, &mstack);
-        //        cout<<"move value turned to be "<<move_value<<endl;
-        if ((move_value > bestEva && player == true) || (move_value < bestEva && player == false))
-        {
-            bestEva = move_value;
-            bestMove = move;
-        }
-    }
-*/
-    //    cout<<endl<<"BEST EVA: " << bestEva<<endl<<endl;
     return bestMove;
 }
 
